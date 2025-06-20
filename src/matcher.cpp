@@ -23,8 +23,6 @@
 #include "std_msgs/msg/string.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 
-#include "nav2_msgs/action/navigate_to_pose.hpp"
-
 using namespace std::chrono_literals;
 
 class PatternMatcher : public rclcpp::Node
@@ -221,7 +219,14 @@ private:
     }
 
     // Check if a good match were found
-    if(best_fitness_ >= 1.0) return;
+    if(best_fitness_ >= 0.0001) return;
+
+    // Check yaw angle constraints to prevent wrong direction detection
+    float yaw_deg = yaw_ * 180.0 / M_PI;
+    if (yaw_deg > 90.0 || yaw_deg < -90.0) {
+      RCLCPP_WARN(this->get_logger(), "Pattern detected in wrong direction (yaw: %.1f°), ignoring", yaw_deg);
+      return;
+    }
 
     // Pattern Match Transformation
     geometry_msgs::msg::TransformStamped transform;
@@ -244,13 +249,6 @@ private:
     pattern_pub_->publish(pattern_msg_);
 
     publish_accuracy_info(tx_, ty_, yaw_, best_fitness_);
-  }
-
-  void navigation_feedback_callback(
-    rclcpp_action::ClientGoalHandle<nav2_msgs::action::NavigateToPose>::SharedPtr,
-    const std::shared_ptr<const nav2_msgs::action::NavigateToPose::Feedback> feedback)
-  {
-    RCLCPP_INFO(this->get_logger(), "Navigation feedback: Distance remaining = %.2f", feedback->distance_remaining);
   }
 
   void publish_accuracy_info(float tx, float ty, float yaw, double fitness)
